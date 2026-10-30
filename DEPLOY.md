@@ -49,6 +49,8 @@ Optional: AI summary on the demo (Groq)
   10 minutes and any Groq error or rate limit silently falls back to the template.
 - Default model is `openai/gpt-oss-120b`; override with a `GROQ_MODEL` variable (for example `openai/gpt-oss-20b`).
   Check which model ids your account can use with `GET https://api.groq.com/openai/v1/models`.
+- `GROQ_FALLBACK_MODEL` (default `openai/gpt-oss-20b`, empty = off) is used automatically when the primary model's daily
+  token cap is hit, so the AI summary keeps working on a live demo (Groq caps tokens per day per model).
 - Do not enable `browser_agent` on the demo service: the default image has no browser.
 
 ## Option B - Hugging Face Spaces (PRO only now)

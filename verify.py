@@ -22,7 +22,7 @@ shutil.copy(os.path.join(HERE, "products.yaml"), os.path.join(work, "products.ya
 os.environ.update(DEMO_MODE="1", SCHEDULER="0", PM_DB=os.path.join(work, "test.db"),
                   PM_CONFIG=os.path.join(work, "products.yaml"), DASHBOARD_PASSWORD="",
                   TELEGRAM_BOT_TOKEN="", GEMINI_API_KEY="", GROQ_API_KEY="", LLM_PROVIDER="", GROQ_MODEL="",
-                  GROQ_BASE_URL="", GROQ_BROWSER_MODEL="", GEMINI_MODEL="")   # "" also stops load_dotenv() pulling a real .env in
+                  GROQ_BASE_URL="", GROQ_BROWSER_MODEL="", GROQ_FALLBACK_MODEL="", GEMINI_MODEL="")   # "" also stops load_dotenv() pulling a real .env in
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 os.chdir(work)
 sys.path.insert(0, HERE)
@@ -148,6 +148,7 @@ calls, script = [], []
 def set_env(**kw):
     for k in LLM_VARS:
         os.environ[k] = ""
+    os.environ.pop("GROQ_FALLBACK_MODEL", None)   # unset = the default fallback model (an empty value would switch it off)
     os.environ.update(kw)
 
 
@@ -210,6 +211,42 @@ ok(llm.generate("q") == "third time lucky" and len(calls) == 3, "groq: 503, 502 
 run_script(httpx.ConnectTimeout("boom"), reply("recovered"))
 ok(llm.generate("q") == "recovered" and len(calls) == 2, "groq: network timeout is retried")
 
+# daily token cap (TPD) on the primary model -> the SAME request once on GROQ_FALLBACK_MODEL, no backoff, model reported
+TPD = {"error": {"message": "Rate limit reached for model `openai/gpt-oss-120b` in organization `org_x` service tier `on_demand` on tokens per day "
+                            "(TPD): Limit 200000, Used 199724, Requested 923. Please try again in 4m39.504s."}}
+run_script((429, TPD, {"retry-after": "280"}), reply("from the fallback"))
+captured.clear()
+out, used = llm.generate_with_model("q", system="s", max_tokens=77)
+sent = [json.loads(c.content) for c in calls]
+ok(out == "from the fallback" and used == "openai/gpt-oss-20b" and [b["model"] for b in sent] == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+   f"groq: TPD 429 -> same request retried on the fallback model, clean text, model reported ({used}, {len(calls)} requests)")
+ok(len(sent) == 2 and {k: v for k, v in sent[0].items() if k != "model"} == {k: v for k, v in sent[1].items() if k != "model"},
+   "groq: the fallback request is identical apart from the model")
+ok(sum("fallback model" in m for m in captured) == 1 and not any(SECRET in m for m in captured), "groq: fallback logs exactly one line, no API key in it")
+run_script((429, TPD, {}), reply("again"))
+ok(llm.generate("q") == "again", "groq: generate() also benefits from the fallback")
+run_script(reply("ok"))
+ok(llm.generate_with_model("q") == ("ok", "openai/gpt-oss-120b") and len(calls) == 1, "groq: healthy primary -> reported as the answering model, no fallback")
+run_script((429, TPD, {}), (429, TPD, {}))
+ok(llm.generate_with_model("q") == (None, None) and len(calls) == 2, "groq: daily cap on both models -> (None, None) after exactly one fallback try")
+run_script((429, {"error": {"message": "slow down"}}, {"retry-after": "0"}))
+ok(llm.generate_with_model("q") == (None, None) and len(calls) == 2 * (llm.MAX_RETRIES + 1)
+   and [json.loads(c.content)["model"] for c in calls[-1:]] == ["openai/gpt-oss-20b"],
+   f"groq: 429 that outlasts the retries -> the fallback model gets the same retries, then None ({len(calls)} requests)")
+run_script((429, {"error": {"message": "slow down"}}, {}), (429, {}, {}), (429, {}, {}), (429, {}, {}), reply("late"))
+ok(llm.generate_with_model("q") == ("late", "openai/gpt-oss-20b") and len(calls) == llm.MAX_RETRIES + 2, "groq: 429 after all retries, fallback model answers")
+set_env(GROQ_API_KEY=SECRET, GROQ_BASE_URL=MOCK_BASE, GROQ_FALLBACK_MODEL="")
+run_script((429, TPD, {}), reply("must not be used"))
+ok(llm.generate_with_model("q") == (None, None) and len(calls) == 1 and llm.fallback_model() == "", "groq: GROQ_FALLBACK_MODEL empty -> fallback disabled, TPD 429 gives None as before")
+set_env(GROQ_API_KEY=SECRET, GROQ_BASE_URL=MOCK_BASE, GROQ_MODEL="my-model", GROQ_FALLBACK_MODEL="other-model")
+run_script((429, TPD, {}), reply("custom"))
+ok(llm.generate_with_model("q") == ("custom", "other-model") and [json.loads(c.content)["model"] for c in calls] == ["my-model", "other-model"],
+   "groq: GROQ_MODEL / GROQ_FALLBACK_MODEL overrides are used")
+set_env(GROQ_API_KEY=SECRET, GROQ_BASE_URL=MOCK_BASE, GROQ_MODEL="openai/gpt-oss-20b")
+run_script((429, TPD, {}))
+ok(llm.generate_with_model("q") == (None, None) and len(calls) == 1, "groq: primary already equals the fallback model -> no pointless second request")
+set_env(GROQ_API_KEY=SECRET, GROQ_BASE_URL=MOCK_BASE)
+
 # persistent failure -> None (caller falls back to template)
 run_script((500, {"error": {"message": "server down"}}, {}))
 ok(llm.generate("q") is None and len(calls) == llm.MAX_RETRIES + 1, f"groq: persistent 500 -> None after {llm.MAX_RETRIES} retries ({len(calls)} requests)")
@@ -234,7 +271,26 @@ ok(">AI summary<" in report.build_html(7) and "Template summary" not in report.b
 report._AI_CACHE.clear()
 run_script((429, {}, {"retry-after": "0"}))
 s = report.summary(facts, 1)
-ok("competitor price change(s)" in s and len(calls) == llm.MAX_RETRIES + 1, "report.summary falls back to the template when Groq keeps failing")
+ok("competitor price change(s)" in s and len(calls) == 2 * (llm.MAX_RETRIES + 1), "report.summary falls back to the template when Groq keeps failing (429: retries on both models)")
+report._AI_CACHE.clear()
+run_script((500, {}, {}))
+s = report.summary(facts, 1)
+ok("competitor price change(s)" in s and len(calls) == llm.MAX_RETRIES + 1, "report.summary: persistent 500 -> template, the fallback model is not tried")
+report._AI_CACHE.clear()
+run_script((429, TPD, {}), reply("- F1\nF2\nF3\nF4\nF5"))
+r1 = report.summary_with_source(facts, 1)
+ok(r1 == ("F1\nF2\nF3\nF4\nF5", True, "openai/gpt-oss-20b") and len(calls) == 2
+   and json.loads(calls[1].content)["model"] == "openai/gpt-oss-20b",
+   f"report.summary_with_source after a TPD 429: clean AI text, is_ai, reports the fallback model ({r1[1:]})")
+ok(report.summary_with_source(facts, 1) == r1 and len(calls) == 2, "report.summary_with_source: the cached answer keeps the model that wrote it")
+report._AI_CACHE.clear()
+run_script(reply("P1\nP2\nP3\nP4\nP5"))
+ok(report.summary_with_source(facts, 1)[1:] == (True, "openai/gpt-oss-120b"), "report.summary_with_source: healthy primary reports the primary model")
+report._AI_CACHE.clear()
+run_script((429, TPD, {}), (429, TPD, {}))
+r2 = report.summary_with_source(facts, 1)
+ok(r2[1:] == (False, None) and "competitor price change(s)" in r2[0] and len(calls) == 2, "report.summary_with_source: both models capped -> template, is_ai False, model None")
+report._AI_CACHE.clear()
 set_env(GROQ_API_KEY=SECRET, GROQ_BASE_URL=MOCK_BASE, LLM_PROVIDER="none")
 run_script(reply("should never be used"))
 s = report.summary(facts, 1)

@@ -103,40 +103,42 @@ AI_CACHE_TTL = 600                   # page loads within 10 minutes reuse one an
 
 
 def ai_summary(f):
-    """5 plain-text lines from the configured LLM provider (Groq or Gemini), or None -> caller uses the template."""
+    """(5 plain-text lines, model that wrote them) from the configured LLM provider (Groq or Gemini), or (None, None)
+    -> caller uses the template. The model differs from llm.model() after a Groq fallback."""
     if not f or not llm.configured():
-        return None
+        return None, None
     facts_text = "\n".join(f[:60])
     key = (llm.provider(), llm.model(), facts_text)
     hit = _AI_CACHE.get(key)
     if hit and time.time() - hit[0] < AI_CACHE_TTL:
-        return hit[1]
-    text = llm.generate(
+        return hit[1], hit[2]
+    text, used = llm.generate_with_model(
         "Write EXACTLY 5 short lines (plain text, no bullets or markdown, no preamble) summarising these "
         "competitor pricing moves and what to do:\n" + facts_text,
         system="You advise a small e-commerce seller.", max_tokens=1024)   # gpt-oss thinks ~200 tokens first
     if not text:
         print(f"{llm.provider()} summary unavailable, using template")
-        return None
+        return None, None
     lines = [ln.strip().lstrip("-*•# ").strip() for ln in text.splitlines()]
     out = "\n".join([ln for ln in lines if ln][:5]) or None
     if out:
         if len(_AI_CACHE) > 20:
             _AI_CACHE.clear()
-        _AI_CACHE[key] = (time.time(), out)
-    return out
+        _AI_CACHE[key] = (time.time(), out, used)
+    return out, (used if out else None)
 
 
 def summary_with_source(f, n_alerts):
-    """(text, is_ai): the report labels the panel 'AI summary' or 'Template summary' from the second value."""
-    text = ai_summary(f)
+    """(text, is_ai, model): the report labels the panel 'AI summary' or 'Template summary' from is_ai; model is the
+    model that wrote an AI summary (the fallback model after a daily-cap 429), None for the template."""
+    text, used = ai_summary(f)
     if text:
-        return text, True
+        return text, True, used
     moves = [x for x in f if not x.startswith("ALERT")]
     t = [f"{len(moves)} competitor price change(s) and {n_alerts} alert(s) this period."]
     t += moves[:3] or ["No price changes detected."]
     t.append("Review products where a competitor undercuts you before adjusting prices.")
-    return "\n".join(t[:5]), False
+    return "\n".join(t[:5]), False, None
 
 
 def summary(f, n_alerts):
@@ -214,7 +216,7 @@ def build_html(days=7, back_url=None) -> str:
     cur = cfg["settings"]["currency"]
     rows, al = history(days)
     f = facts(cfg, rows, al)
-    text, is_ai = summary_with_source(f, len(al))
+    text, is_ai, _model = summary_with_source(f, len(al))
     now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y-%m-%d %H:%M UTC")
 

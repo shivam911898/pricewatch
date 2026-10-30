@@ -158,6 +158,7 @@ called with plain `httpx`, no SDK). **Gemini** still works if you prefer it. Wit
 | `LLM_PROVIDER` | auto | `groq`, `gemini` or `none`. Blank = `groq` if `GROQ_API_KEY` is set, else `gemini` if `GEMINI_API_KEY` is set, else `none` |
 | `GROQ_API_KEY` | - | key from <https://console.groq.com> |
 | `GROQ_MODEL` | `openai/gpt-oss-120b` | model for the report summary (`openai/gpt-oss-20b` is a faster, cheaper alternative) |
+| `GROQ_FALLBACK_MODEL` | `openai/gpt-oss-20b` | used automatically when the primary model's daily cap is hit (HTTP 429 "tokens per day"); empty = off. `report.summary_with_source()` returns the model that answered |
 | `GROQ_BROWSER_MODEL` | `openai/gpt-oss-120b` | model for `browser_agent`; needs structured output. Text/DOM-only on Groq (no vision model there) |
 | `GROQ_BASE_URL` | `https://api.groq.com/openai/v1` | override only for a proxy or a test mock |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | - / `gemini-3.1-flash-lite` | optional Gemini provider |
@@ -171,7 +172,7 @@ called with plain `httpx`, no SDK). **Gemini** still works if you prefer it. Wit
   `GROQ_BROWSER_MODEL` in `.env` if one has been retired.
 - `python smoke_groq.py` makes one real call with your key and prints the provider, model and generated summary.
   `python verify.py` never calls a real API; it runs the same code against a mock endpoint (success, 429-then-success,
-  persistent 500, `none` mode).
+  persistent 500, a daily-cap 429 answered by the fallback model, `none` mode).
 - API keys are read from the environment only and are never written to logs, the database or the dashboard.
 
 ## Deploy

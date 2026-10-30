@@ -57,12 +57,12 @@ def main() -> int:
     print(f"model    : {llm.model('groq')}")
     print(f"endpoint : {llm.groq_base_url()}/chat/completions")
     t0 = time.time()
-    text = report.ai_summary(SAMPLE_FACTS)
+    text, used = report.ai_summary(SAMPLE_FACTS)
     dt = time.time() - t0
     if not text:
         print(f"\nFAILED after {dt:.1f}s: no summary returned (see warnings above: bad key, wrong model id, or rate limit).")
         return 1
-    print(f"\nOK in {dt:.1f}s. Summary text:\n")
+    print(f"\nOK in {dt:.1f}s (answered by {used}). Summary text:\n")
     print(text)
     if "--models" in sys.argv:
         list_models()
