@@ -1,17 +1,38 @@
 {# Live sections. Each one is wrapped in data-slot="..." so the page can swap it after a refresh. #}
 
+{% macro icon(name) -%}
+{%- if name == 'box' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+{%- elif name == 'store' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9"/><path d="M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9"/><path d="M5 12v8h14v-8"/></svg>
+{%- elif name == 'down' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/></svg>
+{%- elif name == 'bell' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+{%- elif name == 'clock' -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+{%- elif name == 'x' -%}
+<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro reltime(ts, cls='') -%}
+{%- if ts -%}<time class="{{ cls }}" datetime="{{ ts }}" title="{{ ts|exact }}">{{ ts|ago }}</time>{%- else -%}<span class="muted">never</span>{%- endif -%}
+{%- endmacro %}
+
 {% macro slot_status() %}
 <div data-slot="status" class="status">
   {% if scheduler.enabled %}
     <span class="dot {{ 'busy' if scheduler.running else 'ok' }}"></span>
     {% if scheduler.running %}Checking now...{% else %}
-      Checks every {{ scheduler.interval|duration }}
-      {% if scheduler.last_run %} &middot; last run {{ scheduler.last_run|ago }}{% endif %}
-      {% if scheduler.next_run %} &middot; next {{ scheduler.next_run|until }}{% endif %}
+      <span>Checks every {{ scheduler.interval|duration }}
+      {% if scheduler.last_run %}&middot; last run {{ scheduler.last_run|ago }}{% endif %}
+      {% if scheduler.next_run %}&middot; next {{ scheduler.next_run|until }}{% endif %}</span>
     {% endif %}
   {% else %}
-    <span class="dot"></span> Scheduler off (checks run via cron or the button)
-    {% if scheduler.last_run %} &middot; last run {{ scheduler.last_run|ago }}{% endif %}
+    <span class="dot"></span>
+    <span>Scheduler off (checks run via cron or the button)
+    {% if scheduler.last_run %}&middot; last run {{ scheduler.last_run|ago }}{% endif %}</span>
   {% endif %}
 </div>
 {% endmacro %}
@@ -19,77 +40,111 @@
 {% macro slot_cards() %}
 <div data-slot="cards" class="cards">
   <div class="card stat">
+    <span class="stat-icon">{{ icon('box') }}</span>
     <div class="stat-label">Products tracked</div>
     <div class="stat-value">{{ cards.products }}</div>
     <div class="stat-sub">{{ cards.pages }} competitor page{{ '' if cards.pages == 1 else 's' }}</div>
   </div>
   <div class="card stat">
+    <span class="stat-icon">{{ icon('store') }}</span>
     <div class="stat-label">Competitors</div>
     <div class="stat-value">{{ cards.stores }}</div>
-    <div class="stat-sub">stores monitored</div>
+    <div class="stat-sub">store{{ '' if cards.stores == 1 else 's' }} monitored</div>
+  </div>
+  <div class="card stat{{ ' alert-on' if cards.undercuts_now }}">
+    <span class="stat-icon">{{ icon('down') }}</span>
+    <div class="stat-label">Undercuts now</div>
+    <div class="stat-value {{ 'neg' if cards.undercuts_now else '' }}">{{ cards.undercuts_now }}</div>
+    <div class="stat-sub">
+      {% if cards.avg_gap is none %}waiting for data
+      {% elif cards.undercuts_now %}of {{ cards.pages }} pages &middot; avg gap {{ cards.avg_gap|signed_pct }}
+      {% else %}nobody is below your prices{% endif %}
+    </div>
   </div>
   <div class="card stat">
+    <span class="stat-icon">{{ icon('bell') }}</span>
     <div class="stat-label">Alerts, last 24 h</div>
     <div class="stat-value">{{ cards.alerts_24h }}</div>
     <div class="stat-sub">{% if cards.last_alert %}latest {{ cards.last_alert|ago }}{% else %}none yet{% endif %}</div>
   </div>
   <div class="card stat">
-    <div class="stat-label">Avg price gap vs me</div>
-    {% if cards.avg_gap is none %}
-      <div class="stat-value">&ndash;</div><div class="stat-sub">waiting for data</div>
-    {% else %}
-      <div class="stat-value {{ 'neg' if cards.avg_gap < -0.05 else ('pos' if cards.avg_gap > 0.05 else '') }}">
-        {{ '%+.1f'|format(cards.avg_gap) }}%</div>
-      <div class="stat-sub">{% if cards.avg_gap < -0.05 %}competitors are cheaper on average{% elif cards.avg_gap > 0.05 %}competitors are pricier on average{% else %}competitors match my prices{% endif %}</div>
-    {% endif %}
+    <span class="stat-icon">{{ icon('clock') }}</span>
+    <div class="stat-label">Last check</div>
+    <div class="stat-value text">{{ reltime(cards.last_check) if cards.last_check else 'Not yet' }}</div>
+    <div class="stat-sub">
+      {% if scheduler.enabled and scheduler.next_run and not scheduler.running %}next {{ scheduler.next_run|until }}
+      {% elif scheduler.running %}running now
+      {% elif cards.last_check %}scheduler is off{% else %}waiting for the first check{% endif %}
+    </div>
   </div>
 </div>
 {% endmacro %}
 
 {% macro slot_table() %}
-<div data-slot="table" data-products='{{ product_names|tojson }}' data-stores='{{ stores|tojson }}'>
+<section data-slot="table" class="card flush" id="prices" data-products='{{ product_names|tojson }}' data-stores='{{ stores|tojson }}'>
+  <div class="card-head">
+    <div>
+      <h2>Competitor prices</h2>
+      <p>{% if no_data %}Waiting for the first check.{% else %}Select a row, or use View chart, to see that product&rsquo;s price history below.{% endif %}</p>
+    </div>
+  </div>
+  {% if no_data %}
+  <div class="empty-state">
+    <div class="empty-icon">{{ icon('clock') }}</div>
+    <h2>No price checks yet</h2>
+    <p>
+      {% if demo %}Warm-up checks run automatically a few seconds after the app starts, so this table fills in on its own.
+      {% elif scheduler.enabled and scheduler.next_run %}The first scheduled check runs {{ scheduler.next_run|until }}.
+      {% else %}Checks run on the schedule you set up (cron or the built-in scheduler).{% endif %}
+      You can also run the first check now.
+    </p>
+    <button class="btn btn-primary" type="button" data-run><span class="spinner" aria-hidden="true"></span><span class="btn-label">Run check now</span></button>
+  </div>
+  {% else %}
   <div class="table-wrap">
     <table class="prices">
       <thead><tr>
-        <th>Product</th><th class="num">My price</th><th>Competitor</th><th class="num">Their price</th>
-        <th class="num">vs me</th><th>Stock</th><th>Status</th><th>Last checked</th>
+        <th class="col-product">Product</th><th class="num">My price</th><th>Competitor</th><th class="num">Their price</th>
+        <th class="num">vs me</th><th>Stock</th><th>Status</th><th>Last checked</th><th><span class="sr-only">Price history</span></th>
       </tr></thead>
-      {% for g in groups %}
       <tbody>
+        {% for g in groups %}
         {% for r in g.rows %}
-        <tr class="st-{{ r.status }}" data-product="{{ r.product }}" title="Click to chart this product">
-          {% if loop.first %}
-          <td class="prod" rowspan="{{ g.rows|length }}">
-            <div class="prod-name">{{ g.product }}</div>
-            <button class="icon-btn" data-del="{{ g.product }}" aria-label="Remove {{ g.product }}" title="Remove product">&times;</button>
+        <tr class="st-{{ r.status }}{{ ' grp-start' if loop.first }}" data-product="{{ r.product }}">
+          <td class="col-product">
+            {% if loop.first %}
+            <span class="prod-name">{{ g.product }}
+              <button class="icon-btn" type="button" data-del="{{ g.product }}" aria-label="Remove {{ g.product }}" title="Remove product">{{ icon('x') }}</button></span>
+            {% else %}<span class="sr-only">{{ g.product }}</span>{% endif %}
           </td>
-          <td class="num mine" rowspan="{{ g.rows|length }}">{{ g.my_price|money(currency) }}</td>
-          {% endif %}
+          <td class="num mine">{% if loop.first %}{{ g.my_price|money(currency) }}{% else %}<span class="sr-only">{{ g.my_price|money(currency) }}</span>{% endif %}</td>
           <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="store">{{ r.store }}</a>
               {% if r.backend != 'http' %}<span class="tag">{{ r.backend|replace('_', ' ') }}</span>{% endif %}</td>
           <td class="num">{% if r.price is not none %}{{ r.price|money(currency) }}
-              {% if r.delta %}<span class="delta {{ 'down' if r.delta < 0 else 'up' }}" title="change since previous check">{{ '&#9660;'|safe if r.delta < 0 else '&#9650;'|safe }} {{ r.delta|abs|money(currency) }}</span>{% endif %}
+              {% if r.delta %}<span class="delta {{ 'down' if r.delta < 0 else 'up' }}" title="Change since the previous check"><span class="sr-only">{{ 'down' if r.delta < 0 else 'up' }}</span>{{ r.delta|abs|money(currency) }}</span>{% endif %}
               {% else %}&ndash;{% endif %}</td>
-          <td class="num">{% if r.diff is not none %}{{ '%+.1f'|format(r.diff) }}%{% else %}&ndash;{% endif %}</td>
-          <td>{% if r.price is none %}&ndash;{% elif r.in_stock %}In stock{% else %}<strong>Out of stock</strong>{% endif %}</td>
+          <td class="num"><span class="diff {{ 'neg' if r.status == 'undercut' else ('pos' if r.status == 'above' else 'flat') }}">{{ r.diff|signed_pct }}</span></td>
+          <td>{% if r.price is none %}&ndash;{% elif r.in_stock %}<span class="pill in-stock">In stock</span>{% else %}<span class="pill out">Out of stock</span>{% endif %}</td>
           <td><span class="pill {{ r.status }}" {% if r.error %}title="{{ r.error }}"{% endif %}>{{ r.label }}</span>
               {% if r.error %}<div class="err">{{ r.error }}</div>{% endif %}</td>
-          <td class="muted">{{ r.ts|ago }}</td>
+          <td class="muted">{% if r.ts %}{{ reltime(r.ts) }}{% else %}&ndash;{% endif %}</td>
+          <td><button class="btn btn-sm" type="button" data-chart="{{ r.product }}" aria-label="Show price history for {{ r.product }}">View chart</button></td>
         </tr>
         {% endfor %}
+        {% else %}
+        <tr><td colspan="9" class="empty-row">No products yet. Add one with the form below.</td></tr>
+        {% endfor %}
       </tbody>
-      {% else %}
-      <tbody><tr><td colspan="8" class="empty">No products yet. Add one with the form below.</td></tr></tbody>
-      {% endfor %}
     </table>
   </div>
-  <p class="legend">
-    <span class="pill undercut">Undercuts you</span> cheaper than your alert threshold &nbsp;
-    <span class="pill oos">Out of stock</span> competitor can't ship &nbsp;
-    <span class="pill above">Priced above you</span> room to raise or hold &nbsp;
-    <span class="pill inline">In line</span> within the threshold
-  </p>
-</div>
+  <div class="legend" aria-label="Status legend">
+    <span><span class="pill undercut">Undercut</span> below your alert threshold</span>
+    <span><span class="pill oos">Out of stock</span> competitor cannot ship</span>
+    <span><span class="pill above">Priced above you</span> room to hold or raise</span>
+    <span><span class="pill inline">In line</span> within the threshold</span>
+  </div>
+  {% endif %}
+</section>
 {% endmacro %}
 
 {% macro slot_alerts() %}
@@ -97,15 +152,15 @@
   {% if alerts %}
   <ul class="alerts">
     {% for a in alerts %}
-    <li class="alert-{{ a.kind }}">
+    <li>
       <span class="pill k-{{ a.kind }}">{{ a.label }}</span>
-      <span class="alert-msg">{{ a.message }}</span>
-      <span class="muted alert-time" title="{{ a.ts }}">{{ a.ts|ago }}</span>
+      <span class="alert-msg">{{ a.message|replace('->', '→') }}</span>
+      {{ reltime(a.ts, 'alert-time') }}
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="empty">No alerts yet. They appear here (and in Telegram / Google Sheets, if enabled) as soon as a competitor undercuts you, drops its price or runs out of stock.</p>
+  <p class="empty">No alerts yet. They appear here (and in Telegram or Google Sheets, if enabled) as soon as a competitor undercuts you, drops its price or runs out of stock.</p>
   {% endif %}
 </div>
 {% endmacro %}

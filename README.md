@@ -16,10 +16,14 @@ price history, alerts you the moment something changes, and gives you a dashboar
 - **Tracks** your products against any number of competitor pages (HTML pages via CSS selector, JSON APIs via JSON path).
 - **Stores history** of every check in SQLite.
 - **Alerts** on three rules (below) via the dashboard, **Telegram** and **Google Sheets**.
-- **Dashboard** with summary cards, a colour-coded price table (my price vs each competitor, % difference, stock,
-  last checked), an alert log, a per-product price-history chart and an **Add product** form that validates the
-  selector with a real first check before saving.
-- **Weekly HTML report** with price charts and a 5-line summary (AI-written with your Groq or Gemini key, a template otherwise).
+- **Dashboard** with summary cards (products, competitors, undercuts now, alerts in 24 h, last check), a price table
+  with status pills, signed % difference, stock pills and relative "last checked" times, a per-product price-history
+  chart that opens from any row, an alert log, and an **Add product** form with field hints and inline validation that
+  runs a real first check before saving. A friendly empty state covers the first seconds after a restart, and the layout
+  works down to phone width.
+- **Weekly HTML report** with a title block and date range, one card per product with its chart and a competitor table, and a
+  highlighted 5-line summary labelled **AI summary** (your Groq or Gemini key) or **Template summary** (no key). It is
+  print-ready, so a client can save it as PDF from the browser.
 - **JavaScript-heavy shops:** optional Playwright backend, or an optional **AI browser agent** backend
   (`browser-use` + Groq or Gemini) per product.
 - **Polite by design:** `robots.txt` check, descriptive User-Agent, per-site delay, hourly default.
@@ -202,7 +206,8 @@ is fine, because warm-up checks refill the dashboard on every start.
 
 ## Third-party
 
-[Chart.js](https://www.chartjs.org/) 4.4.7 (MIT) is vendored in `static/` so the page works without a CDN. Everything else is installed from `requirements.txt`.
+[Chart.js](https://www.chartjs.org/) 4.4.7 (MIT) is vendored in `static/` so the page works without a CDN. The UI uses the Inter font from Google Fonts when online and falls back to the
+system font offline. Everything else is installed from `requirements.txt`.
 
 ## License
 

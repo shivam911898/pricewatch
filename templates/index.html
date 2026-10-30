@@ -1,115 +1,152 @@
-{% from "_slots.html" import slot_status, slot_cards, slot_table, slot_alerts with context %}
+{% from "_slots.html" import slot_status, slot_cards, slot_table, slot_alerts with context -%}
+{% macro field(name, label, placeholder='', hint='', type='text', attrs='', optional=False, required=False) -%}
+<div class="field" data-field="{{ name }}">
+  <label for="f-{{ name }}">{{ label }}{% if optional %} <span class="opt">(optional)</span>{% endif %}</label>
+  <input id="f-{{ name }}" name="{{ name }}" type="{{ type }}" placeholder="{{ placeholder }}" {{ attrs|safe }}{% if required %} aria-required="true"{% endif %} aria-describedby="h-{{ name }} e-{{ name }}">
+  <p class="hint" id="h-{{ name }}">{{ hint }}</p>
+  <p class="field-error" id="e-{{ name }}" aria-live="polite" hidden></p>
+</div>
+{%- endmacro %}
+{#- keep the doctype first -#}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PriceWatch - competitor price &amp; stock monitor</title>
-  <meta name="description" content="Track competitor prices and stock automatically and get alerted the moment someone undercuts you.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M8 21l5-6 4 3 7-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="static/style.css">
+  <title>PriceWatch | Competitor price &amp; stock monitor</title>
+  <meta name="description" content="PriceWatch checks competitor prices and stock on a schedule, alerts you the moment someone undercuts you, and sends a weekly report.">
+  <meta name="theme-color" content="#4F46E5">
+  <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap"></noscript>
+  <link rel="stylesheet" href="static/style.css?v={{ asset_v }}">
 </head>
 <body data-demo="{{ 1 if demo else 0 }}" data-currency="{{ currency }}">
-<header class="top">
-  <div class="brand">
-    <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2a78d6"/><path d="M8 21l5-6 4 3 7-9" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span>PriceWatch</span>
-    {% if demo %}<span class="badge">Live demo</span>{% endif %}
-  </div>
-  <div class="top-actions">
-    {{ slot_status() }}
-    <a class="btn ghost" href="report" target="_blank" rel="noopener">Weekly report</a>
-    {% if demo %}<button class="btn ghost" id="btn-reset" type="button">Reset demo</button>{% endif %}
-    <button class="btn primary" id="btn-run" type="button">Run check now</button>
+<a class="skip sr-only" href="#main">Skip to content</a>
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <a class="brand-name" href="./"><img class="brand-mark" src="static/favicon.svg" alt="" width="32" height="32">PriceWatch</a>
+      {% if demo %}<span class="pill demo">Demo: simulated shops{% if scheduler.enabled %}, checks every {{ scheduler.interval|duration }}{% else %}, checks run on demand{% endif %}</span>{% endif %}
+    </div>
+    <div class="top-actions">
+      <a class="btn" href="report" target="_blank" rel="noopener">Weekly report</a>
+      {% if demo %}<button class="btn" id="btn-reset" type="button">Reset demo</button>{% endif %}
+      <button class="btn btn-primary" id="btn-run" type="button" data-run><span class="spinner" aria-hidden="true"></span><span class="btn-label">Run check now</span></button>
+    </div>
   </div>
 </header>
 
-<main>
+<main class="wrap" id="main">
+  <div class="page-head">
+    <div>
+      <h1>Competitor overview</h1>
+      <p>How your prices compare with every competitor page you track. This page refreshes by itself.</p>
+    </div>
+    {{ slot_status() }}
+  </div>
+
   {% if demo %}
-  <p class="demo-note"><strong>This is a live demo.</strong> The &ldquo;competitor&rdquo; shops are simulated inside this app
-    (<a href="demo-store/" target="_blank" rel="noopener">open the fake shop</a>) and their prices change every few checks, so alerts keep firing.
-    Try <em>Run check now</em> a couple of times, or add your own product at the bottom.</p>
+  <p class="callout"><span><strong>This is a live demo.</strong> The &ldquo;competitor&rdquo; shops are simulated inside this app
+    (<a href="demo-store/" target="_blank" rel="noopener">open the fake shop</a>) and their prices keep changing, so alerts keep firing.
+    Run a check, open a row to see its price history, or add your own product at the bottom.</span></p>
   {% endif %}
 
   {{ slot_cards() }}
 
-  <section class="card">
-    <div class="card-head"><h2>Competitor prices</h2><span class="muted">Click a row to chart it</span></div>
-    {{ slot_table() }}
-  </section>
+  {{ slot_table() }}
 
-  <section class="card" id="history">
+  <section class="card" id="history" aria-labelledby="history-title">
     <div class="card-head">
-      <h2>Price history</h2>
-      <label class="inline-label">Product <select id="chart-product" aria-label="Product to chart"></select></label>
+      <div>
+        <h2 id="history-title">Price history</h2>
+        <p id="chart-subtitle">Pick a product to see how each competitor&rsquo;s price moved against yours.</p>
+      </div>
+      <label class="field-inline" for="chart-product">Product <select id="chart-product"></select></label>
     </div>
     <div class="chart-box"><canvas id="chart" role="img" aria-label="Line chart of competitor prices over time against my price"></canvas></div>
-    <p id="chart-empty" class="empty" hidden>No checks yet for this product. Click &ldquo;Run check now&rdquo;.</p>
+    <p id="chart-empty" class="empty" hidden>No checks yet for this product. Run a check to start its history.</p>
     <details class="table-view"><summary>View chart data as a table</summary>
       <div class="table-wrap"><table id="chart-table" class="plain"></table></div>
     </details>
   </section>
 
   <div class="grid2">
-    <section class="card">
-      <div class="card-head"><h2>Alert log</h2><span class="muted">newest first</span></div>
+    <section class="card" aria-labelledby="alerts-title">
+      <div class="card-head"><div><h2 id="alerts-title">Alert log</h2><p>Newest first. One alert when a condition starts, not on every check.</p></div></div>
       {{ slot_alerts() }}
     </section>
 
-    <section class="card" id="add">
-      <div class="card-head"><h2>Add product</h2>
-        {% if demo %}<button class="link" id="btn-fill" type="button">Fill with demo values</button>{% endif %}</div>
-      <form id="add-form" autocomplete="off">
-        <label>Product name <input name="name" required maxlength="80" placeholder="Steel Water Bottle 1L"></label>
-        <div class="row2">
-          <label>My price ({{ currency }}) <input name="my_price" type="number" step="0.01" min="0.01" required placeholder="24.00"></label>
-          <label>Competitor name <input name="store" required maxlength="60" placeholder="AlphaMart"></label>
+    <section class="card" id="add" aria-labelledby="add-title">
+      <div class="card-head">
+        <div><h2 id="add-title">Add product</h2><p>PriceWatch runs a real first check before saving.</p></div>
+        {% if demo %}<button class="link-btn" id="btn-fill" type="button">Fill with demo values</button>{% endif %}
+      </div>
+      <form id="add-form" autocomplete="off" novalidate>
+        <div class="form-section">Your product</div>
+        <div class="row2 wide-1st">
+          {{ field('name', 'Product name', 'Steel Water Bottle 1L', 'Reuse a name to add a competitor.', attrs='maxlength="80"', required=True) }}
+          {{ field('my_price', 'My price (' ~ currency ~ ')', '24.00', 'Used for the % difference.', type='number', attrs='step="0.01" min="0.01" inputmode="decimal"', required=True) }}
         </div>
-        <label>Competitor product URL
-          <input name="url" required maxlength="500" placeholder="{{ '/demo-store/alpha/4' if demo else 'https://competitor.com/product/123' }}"></label>
-        <div class="row2">
-          <label>Price CSS selector <input name="css_selector" maxlength="200" placeholder=".price"></label>
-          <label>Stock CSS selector <span class="opt">(optional)</span> <input name="stock_selector" maxlength="200" placeholder=".stock"></label>
+
+        <div class="form-section">Competitor page</div>
+        <div class="row2 wide-2nd">
+          {{ field('store', 'Competitor name', 'AlphaMart', 'Shown in the table and chart.', attrs='maxlength="60"', required=True) }}
+          {{ field('url', 'Product page URL', '/demo-store/alpha/4' if demo else 'https://competitor.com/product/123',
+                   'Try /demo-store/alpha/4 or /demo-store/beta/api/4.' if demo else 'A public product page or JSON API address.', attrs='maxlength="500"', required=True) }}
         </div>
         <div class="row2">
-          <label>Alert if undercut by (%) <input name="undercut_pct" type="number" step="0.5" min="0" max="100" placeholder="5"></label>
-          <label>Alert if price drops by (%) <input name="drop_pct" type="number" step="0.5" min="0" max="100" placeholder="5"></label>
+          {{ field('css_selector', 'Price CSS selector', '.price', 'Element that shows the price.', attrs='maxlength="200"') }}
+          {{ field('stock_selector', 'Stock CSS selector', '.stock', 'Says in stock or out of stock.', attrs='maxlength="200"', optional=True) }}
         </div>
-        <details>
+
+        <div class="form-section">Alert thresholds</div>
+        <div class="row2">
+          {{ field('undercut_pct', 'Undercut alert (%)', '5', 'Alert at this % below your price.', type='number', attrs='step="0.5" min="0" max="100" inputmode="decimal"', optional=True) }}
+          {{ field('drop_pct', 'Price-drop alert (%)', '5', 'Alert on a drop this big.', type='number', attrs='step="0.5" min="0" max="100" inputmode="decimal"', optional=True) }}
+        </div>
+
+        <details class="adv">
           <summary>Advanced: JSON API or JavaScript site</summary>
           <div class="row2">
-            <label>JSON price path <input name="json_path" maxlength="120" placeholder="product.price"></label>
-            <label>JSON stock path <input name="stock_path" maxlength="120" placeholder="product.available"></label>
+            {{ field('json_path', 'JSON price path', 'product.price', 'For API pages, instead of a CSS selector.', attrs='maxlength="120"') }}
+            {{ field('stock_path', 'JSON stock path', 'product.available', 'Optional true/false field.', attrs='maxlength="120"', optional=True) }}
           </div>
-          <label>Scraping backend
-            <select name="backend"{% if demo %} disabled{% endif %}>
+          <div class="field" data-field="backend">
+            <label for="f-backend">Scraping backend</label>
+            <select id="f-backend" name="backend" aria-describedby="h-backend"{% if demo %} disabled{% endif %}>
               <option value="http">HTTP + BeautifulSoup (default, fast)</option>
               <option value="playwright">Playwright (JavaScript pages)</option>
               <option value="browser_agent">AI browser agent (hard sites)</option>
-            </select></label>
-          {% if demo %}<p class="hint">The public demo uses the HTTP backend only; the other two are enabled in client deployments.</p>{% endif %}
+            </select>
+            <p class="hint" id="h-backend">{% if demo %}The public demo uses the HTTP backend only; the other two are enabled in client deployments.{% else %}Use Playwright or the AI agent only when a plain request cannot see the price.{% endif %}</p>
+            <p class="field-error" id="e-backend" aria-live="polite" hidden></p>
+          </div>
         </details>
-        <button class="btn primary wide" type="submit" id="btn-add">Add &amp; check now</button>
+
+        <button class="btn btn-primary btn-wide" type="submit" id="btn-add"><span class="spinner" aria-hidden="true"></span><span class="btn-label">Add &amp; check now</span></button>
         <p id="form-msg" class="form-msg" role="status" aria-live="polite"></p>
       </form>
     </section>
   </div>
 </main>
 
-<footer>
+<footer class="wrap site-footer">
   <p>
     Alerts: dashboard always &middot;
     Telegram <strong>{{ 'on' if channels.telegram else 'off' }}</strong> &middot;
     Google Sheets <strong>{{ 'on' if channels.google_sheet else 'off' }}</strong> &middot;
     AI summary <strong>{{ ('on (' ~ channels.ai_provider ~ ')') if channels.ai else 'template' }}</strong>
-    {% if demo %}<span class="muted">(channels are switched on per client with API keys)</span>{% endif %}
+    {% if demo %}<span>(channels are switched on per client with API keys)</span>{% endif %}
   </p>
-  <p class="muted">Polite by design: obeys robots.txt, identifies itself with a descriptive User-Agent, throttles per site and checks hourly by default.
+  <p>Polite by design: obeys robots.txt, identifies itself with a descriptive User-Agent, throttles per site and checks hourly by default.
     Only public pages. &middot; <a href="docs" target="_blank" rel="noopener">REST API</a></p>
 </footer>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="static/chart.umd.min.js"></script>
-<script src="static/app.js"></script>
+<script src="static/app.js?v={{ asset_v }}"></script>
 </body>
 </html>

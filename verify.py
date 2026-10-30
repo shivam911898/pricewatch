@@ -76,8 +76,15 @@ ok(r.status_code == 200 and "<table class=\"prices\">" in r.text and "Steel Wate
    and "AlphaMart" in r.text and "Alert log" in r.text and "Add product" in r.text, "GET / renders dashboard with products table")
 ok(c.get("/fragment").status_code == 200 and c.get("/static/app.js").status_code == 200 and c.get("/static/chart.umd.min.js").status_code == 200,
    "fragment + static assets served")
+page = r.text
+ok(c.get("/static/favicon.svg").status_code == 200 and 'rel="icon"' in page and 'name="description"' in page and "static/style.css" in page
+   and "Undercuts now" in page and "Last check" in page and "data-chart=" in page and "Demo: simulated shops" in page,
+   "dashboard: favicon, meta description, stylesheet, summary cards, chart buttons, demo pill")
+ok("<style" not in page.split("</head>")[0] and 'style="' not in page, "dashboard: no inline styles (one stylesheet in static/)")
 st = c.get("/api/state").json()
 ok(st["cards"]["products"] == 3 and st["cards"]["alerts_24h"] == n_alerts and len(st["rows"]) == 6, "API state: cards match")
+ok(st["no_data"] is False and st["cards"]["last_check"] and st["cards"]["undercuts_now"] == sum(1 for x in st["rows"] if x["status"] == "undercut"),
+   "API state: last_check and undercuts_now are consistent with the table")
 h = c.get("/api/history", params={"product": "Steel Water Bottle 1L"}).json()
 ok(len(h["labels"]) == 3 and len(h["series"]) == 2 and h["series"][0]["prices"][-1] is not None, "API history: 3 points x 2 stores")
 ok(c.post("/api/run").status_code == 403, "mutating call without X-PriceWatch header is rejected (CSRF guard)")
@@ -107,6 +114,9 @@ cfg2["products"] = [{"name": "JS page", "my_price": 10.0, "competitors": [
 res = core.run_once(cfg2)        # no GROQ_API_KEY / GEMINI_API_KEY in the environment here
 ok(res["skipped"] >= 1 and res["checked"] == 0, f"browser_agent without an AI key is skipped, not crashed (skipped={res['skipped']}, errors={res['errors']})")
 core.reset_data(); c.post("/demo-store/reset")
+empty = c.get("/")
+ok(empty.status_code == 200 and "No price checks yet" in empty.text and "data-run" in empty.text and c.get("/api/state").json()["no_data"] is True,
+   "empty state: card with a Run check now button before the first check")
 for _ in range(3):
     core.run_once()
 
@@ -115,6 +125,8 @@ import report  # noqa: E402
 report.main()
 html = open("report.html", encoding="utf-8").read()
 ok("data:image/png;base64" in html and "PriceWatch weekly report" in html, "report.html generated with charts")
+ok("Template summary" in html and "@media print" in html and "--primary: #4F46E5" in html and html.count("class='card product-card'") == 3,
+   "report.html: template summary badge, print CSS, design tokens, one card per product")
 ok(c.get("/report").status_code == 200, "GET /report")
 
 # 6. LLM provider layer against a mock OpenAI-compatible endpoint (no real key, no network) ----------------------
@@ -218,6 +230,7 @@ ok(report.summary(facts, 1) == s and len(calls) == 1, "report.summary: an identi
 report._AI_CACHE.clear()
 run_script(reply("Mock AI summary for the weekly report."))
 ok("Mock AI summary for the weekly report." in report.build_html(7) and len(calls) == 1, "weekly report HTML carries the AI summary")
+ok(">AI summary<" in report.build_html(7) and "Template summary" not in report.build_html(7), "weekly report labels the panel 'AI summary' when the provider answered")
 report._AI_CACHE.clear()
 run_script((429, {}, {"retry-after": "0"}))
 s = report.summary(facts, 1)

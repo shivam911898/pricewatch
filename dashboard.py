@@ -28,7 +28,7 @@ _last_manual = -1e9
 _basic = HTTPBasic(auto_error=False)
 
 KIND_LABEL = {"undercut": "Undercut", "price_drop": "Price drop", "out_of_stock": "Out of stock"}
-STATUS_LABEL = {"undercut": "Undercuts you", "oos": "Out of stock", "above": "Priced above you",
+STATUS_LABEL = {"undercut": "Undercut", "oos": "Out of stock", "above": "Priced above you",
                 "inline": "In line", "pending": "Waiting for first check", "error": "Check failed",
                 "skipped": "Skipped"}
 
@@ -67,7 +67,7 @@ def ago(ts: str | None) -> str:
     if secs < 5:
         return "just now"
     if secs < 90:
-        return f"{secs}s ago"
+        return f"{secs} s ago"
     if secs < 5400:
         return f"{round(secs / 60)} min ago"
     if secs < 172800:
@@ -101,6 +101,7 @@ def snapshot() -> dict:
            GROUP BY product, store) l ON e.id = l.m""")}
     alerts = [dict(a) for a in con.execute("SELECT * FROM alerts ORDER BY id DESC LIMIT 40")]
     n24 = con.execute("SELECT COUNT(*) FROM alerts WHERE ts >= ?", (core.since(hours=24),)).fetchone()[0]
+    last_check = con.execute("SELECT MAX(ts) FROM checks").fetchone()[0]
     con.close()
 
     rows, gaps, stores = [], [], set()
@@ -135,7 +136,11 @@ def snapshot() -> dict:
         "demo": core.demo_mode(), "currency": st["currency"], "rows": rows, "alerts": alerts,
         "cards": {"products": len(cfg["products"]), "stores": len(stores), "pages": len(rows),
                   "alerts_24h": n24, "last_alert": alerts[0]["ts"] if alerts else None,
-                  "avg_gap": (sum(gaps) / len(gaps)) if gaps else None},
+                  "avg_gap": (sum(gaps) / len(gaps)) if gaps else None,
+                  "undercuts_now": sum(1 for r in rows if r["status"] == "undercut"),
+                  "last_check": last_check},
+        # True until the first check (or the first failure) is recorded, e.g. right after a restart on a host with an ephemeral disk
+        "no_data": bool(rows) and all(r["status"] == "pending" for r in rows),
         "scheduler": sched, "channels": core.channels_status(),
         "product_names": [p["name"] for p in cfg["products"]],
     }
@@ -153,7 +158,7 @@ def until(ts: str | None) -> str:
 def duration(secs) -> str:
     secs = int(secs or 0)
     if secs < 90:
-        return f"{secs}s"
+        return f"{secs} s"
     if secs < 5400:
         return f"{round(secs / 60)} min"
     return f"{secs / 3600:.0f} h" if secs % 3600 == 0 else f"{secs / 3600:.1f} h"
@@ -163,7 +168,31 @@ def money(value, currency="$") -> str:
     return "-" if value is None else f"{currency}{value:,.2f}"
 
 
-templates.env.filters.update(ago=ago, until=until, duration=duration, money=money)
+def _asset_version() -> int:
+    """Cache-buster for static/style.css and app.js so a redeploy is picked up without a hard refresh."""
+    try:
+        return int(max((BASE / "static" / n).stat().st_mtime for n in ("style.css", "app.js")))
+    except OSError:
+        return 0
+
+
+def exact(ts: str | None) -> str:
+    """Full timestamp for a title attribute (the page's script swaps it for the visitor's local time)."""
+    if not ts:
+        return ""
+    try:
+        return datetime.fromisoformat(ts).astimezone(timezone.utc).strftime("%d %b %Y, %H:%M:%S UTC")
+    except ValueError:
+        return ts
+
+
+def signed_pct(value) -> str:
+    """+8.3% / -6.3% with a real minus sign; en dash when there is no value."""
+    return "–" if value is None else f"{value:+.1f}%".replace("-", "−")
+
+
+templates.env.filters.update(ago=ago, until=until, duration=duration, money=money, exact=exact, signed_pct=signed_pct)
+templates.env.globals["asset_v"] = _asset_version()
 
 
 def _ctx(request: Request) -> dict:
@@ -194,7 +223,7 @@ def fragment(request: Request):
 @router.get("/report", response_class=HTMLResponse)
 def weekly_report(days: int = 7):
     import report
-    return HTMLResponse(report.build_html(max(1, min(days, 90))))
+    return HTMLResponse(report.build_html(max(1, min(days, 90)), back_url="./"))
 
 
 # --------------------------------------------------------------------------- JSON API
