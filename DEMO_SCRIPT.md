@@ -1,6 +1,6 @@
 # Loom demo script (60-90 seconds)
 
-**Before recording:** open the live demo (or `DEMO_MODE=1 uvicorn app:app`), browser at 1440x900, zoom 100%, close other tabs.
+**Before recording:** open the live demo on Render a few minutes early (the free instance sleeps after about 15 minutes idle and needs about a minute to wake), or run `DEMO_MODE=1 uvicorn app:app`. Browser at 1440x900, zoom 100%, close other tabs.
 Click **Reset demo** once so the dashboard is in its starting state, then wait about 10 seconds for the first alerts.
 Speak slowly; every pause below is a place to let the screen do the talking.
 
@@ -14,6 +14,6 @@ Speak slowly; every pause below is a place to let the screen do the talking.
 | 1:12-1:22 | Scroll to the footer, then the Weekly report button | "There's a weekly report with charts and a plain-English AI summary, written with your own Groq or Gemini key, JavaScript-heavy shops are supported, and it scrapes politely: robots.txt, delays, and hourly checks." |
 | 1:22-1:30 | Back to the top of the dashboard | "If you'd like this set up for your shop, send me two or three competitor links and I'll tell you what's possible. Thanks for watching." |
 
-Note: on the public demo the AI summary is only live if `GROQ_API_KEY` is set as a Space secret (see DEPLOY.md); without it the report shows the built-in template summary, so do not promise AI wording on camera unless the footer says "AI summary on".
+Note: on the public demo the AI summary is only live if `GROQ_API_KEY` is set as an environment variable on the Render service (see DEPLOY.md); without it the report shows the built-in template summary, so do not promise AI wording on camera unless the footer says "AI summary on".
 
 Tips: keep the cursor still while you talk; if a check fails on camera, click **Reset demo** and re-record that part.

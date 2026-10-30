@@ -1,0 +1,13 @@
+# Render blueprint for the free public demo. See DEPLOY.md (Option A).
+# Render dashboard -> New -> Blueprint -> pick the GitHub repo shivam911898/pricewatch.
+services:
+  - type: web
+    name: pricewatch
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: DEMO_MODE
+        value: "1"
+      - key: GROQ_API_KEY            # optional: enables the AI summary in /report; without it the template summary is used
+        sync: false                  # secret: Render asks for the value in the dashboard, it is never stored in git

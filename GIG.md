@@ -19,7 +19,7 @@ I will build a web scraping price monitoring bot and competitor price tracker
 | JavaScript-heavy sites | no (normal HTML pages or JSON APIs) | 1 JavaScript site (Playwright) | up to 3 JavaScript sites, with AI browser-agent fallback for hard pages |
 | Alert rules | undercut + out-of-stock | + price-drop %, per-product thresholds | + custom rules (e.g. margin floor, MAP breach) |
 | Alert channels | 1 (Telegram **or** Google Sheet) | 2 (Telegram + Google Sheets) | Telegram + Google Sheets + 1 custom (email / Slack / Discord) |
-| Dashboard | no (Google Sheet log + alerts) | yes, deployed on your free host (Hugging Face / Render) | yes, password-protected, deployed on your VPS or paid host |
+| Dashboard | no (Google Sheet log + alerts) | yes, deployed on your free host (Render free tier or similar) | yes, password-protected, deployed on your VPS or paid host |
 | Scheduling | hourly via cron / Task Scheduler (instructions) | built-in scheduler, hourly or slower | custom schedules per site |
 | Weekly report | - | HTML report with price charts | HTML report + AI summary (Groq or Gemini, your key) |
 | Source code + setup guide | yes | yes | yes + 15-min handover call |
@@ -53,7 +53,7 @@ Not sure your competitors' sites can be monitored? Send me 2-3 product links and
 3. **What do I need to give you?**
    Your product list (name + your current price), the competitor product URLs, and a Telegram bot or Google account for alerts. I set up the rest and show you how to add products yourself from the dashboard.
 4. **Where does it run and what does it cost?**
-   On your PC, a small VPS or a free host such as Hugging Face Spaces / Render. Typical running cost is $0-5 per month. The AI summary is optional and uses your own Groq or Gemini key (both have a free tier); without a key you get a built-in template summary.
+   On your PC, a small VPS or a free host such as Render's free tier. Typical running cost is $0-5 per month. The AI summary is optional and uses your own Groq or Gemini key (both have a free tier); without a key you get a built-in template summary.
 5. **What happens when a competitor redesigns their page?**
    The selector for that page needs a small update. Standard includes 7 days of support and Premium 30 days; afterwards I offer quick fixes or a small monthly maintenance plan.
 

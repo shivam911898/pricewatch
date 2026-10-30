@@ -8,6 +8,8 @@ pinned: false
 short_description: Competitor price and stock monitor with alerts
 ---
 
+> Hugging Face Spaces requires a PRO subscription as of Oct 2026 (Docker/Gradio Spaces return HTTP 402), so the free public demo lives on Render; see `DEPLOY.md`. This file is only for someone with a PRO account.
+
 # PriceWatch - live demo
 
 A competitor price and stock monitoring bot with a dashboard, alert log and price-history charts.

@@ -1,6 +1,6 @@
 # PriceWatch - competitor price & stock monitor with alerts
 
-**Live demo:** `https://<your-space>.hf.space` *(add after deploying, see [DEPLOY.md](DEPLOY.md))*
+**Live demo:** `https://<your-service>.onrender.com` *(add after deploying, see [DEPLOY.md](DEPLOY.md); the free Render instance sleeps after about 15 minutes idle, so the first load can take about a minute)*
 
 Small online sellers lose sales when a rival quietly undercuts them or runs out of stock, and checking
 competitor pages by hand is slow and easy to forget. **PriceWatch** checks those pages on a schedule, keeps the
@@ -172,10 +172,11 @@ called with plain `httpx`, no SDK). **Gemini** still works if you prefer it. Wit
 
 ## Deploy
 
-`Dockerfile` (python:3.12-slim) runs on `$PORT`, defaults to **7860** (Hugging Face Spaces Docker SDK) and starts in
-demo mode, so a public demo is one container. Step-by-step for Hugging Face Spaces (free) and Render in
-**[DEPLOY.md](DEPLOY.md)**, including a real-client setup with a persistent volume and password. SQLite is ephemeral on free
-hosts; for the demo that is fine, because warm-up checks refill the dashboard on every start.
+`Dockerfile` (python:3.12-slim) runs on `$PORT`, defaults to **7860**, and starts in demo mode, so a public demo is one
+container. The free live demo is hosted on **Render** (Docker runtime, free instance; `render.yaml` is a one-file blueprint).
+Step-by-step in **[DEPLOY.md](DEPLOY.md)**, including a real-client setup with a persistent volume and password. Hugging Face
+Spaces now needs a PRO subscription, so it is no longer the free path. SQLite is ephemeral on free hosts; for the demo that
+is fine, because warm-up checks refill the dashboard on every start.
 
 ## Polite scraping and legal note
 

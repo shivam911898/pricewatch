@@ -1,67 +1,64 @@
 # Deploying PriceWatch
 
-The same `Dockerfile` serves every target. It runs `uvicorn app:app` on `$PORT` (default **7860**, the
-Hugging Face Spaces port) and sets `DEMO_MODE=1`, so a fresh container is a self-contained public demo:
+The same `Dockerfile` serves every target. It runs `uvicorn app:app` on `$PORT` (default **7860** when `PORT` is not set;
+Render injects its own) and sets `DEMO_MODE=1`, so a fresh container is a self-contained public demo:
 dashboard + simulated competitor shop + scheduler, no keys, no external scraping.
 
-> **SQLite is ephemeral on free hosts.** Free Spaces/Render instances lose their disk on every restart or
+**Render blueprint:** `render.yaml` in the project root describes the same service (New -> Blueprint), as a shortcut for steps 2-5 of Option A.
+
+> **SQLite is ephemeral on free hosts.** Free Render instances lose their disk on every restart, spin-down or
 > redeploy. For the demo that is fine: on each start the app re-runs three real checks against the embedded
 > demo store, so the dashboard is never empty. For a real client, use a persistent volume (last section).
 
-## Option A - Hugging Face Spaces (free, recommended for the demo)
+## Option A - Render (free, recommended for the demo)
 
-1. Create a free account at <https://huggingface.co> and a **write** access token
-   (Settings -> Access Tokens -> New token -> role *Write*).
-2. Create the Space: <https://huggingface.co/new-space> -> name `pricewatch`, **SDK: Docker -> Blank**,
-   hardware **CPU basic (free)**, visibility **Public**.
-3. Push the project (PowerShell, from the project folder; replace `<USER>`):
+Free-tier facts: the instance spins down after about 15 minutes without traffic and cold-starts in about a minute;
+512 MB RAM (enough for this app); the scheduler only runs while the instance is awake, which is fine for a demo.
 
-   ```powershell
-   cd ..
-   git clone https://huggingface.co/spaces/<USER>/pricewatch hf-space    # user: <USER>, password: the write token
-   robocopy price-monitor hf-space /E /XD .venv .git __pycache__ docs /XF .env *.db report.html README.md | Out-Null
-   copy price-monitor\deploy\HF_SPACE_README.md hf-space\README.md       # Space README with the required YAML header
-   cd hf-space
-   git add .
-   git commit -m "Deploy PriceWatch"
-   git push
-   ```
+1. Push the project to GitHub as `shivam911898/pricewatch`, with the `Dockerfile` in the repo root (`.env`, `.venv` and `*.db`
+   are git-ignored).
+2. Sign in at <https://dashboard.render.com> (signing in with GitHub is the simplest) -> **New -> Web Service**.
+3. Source: connect the GitHub repo `shivam911898/pricewatch`, **or** use the **Public Git Repository** tab and paste
+   `https://github.com/shivam911898/pricewatch` (no GitHub connection needed for a public repo).
+4. Name `pricewatch`, branch `main`, leave Root Directory blank. **Runtime: Docker** (Render finds the `Dockerfile`),
+   **Instance Type: Free**.
+5. **Environment Variables**:
 
-   (robocopy exit codes below 8 mean success. Bash equivalent: `rsync -a --exclude .venv --exclude .git --exclude docs --exclude .env --exclude '*.db' --exclude README.md price-monitor/ hf-space/`.
-   You can also drag-and-drop the files in the Space's **Files -> Add file -> Upload files** page, and
-   paste `deploy/HF_SPACE_README.md` as `README.md`.)
-4. The **Logs** tab shows the image build (about 3-5 minutes the first time). When it says
-   `Application startup complete`, open `https://<USER>-pricewatch.hf.space`. `/healthz` returns `{"ok": true}`.
-5. Put that URL in `README.md`, the Fiverr gig and your Upwork portfolio.
+   | Name | Value |
+   |------|-------|
+   | `DEMO_MODE` | `1` (already the Dockerfile default, set it explicitly anyway) |
+   | `GROQ_API_KEY` (optional) | key from <https://console.groq.com>; turns on the AI summary in `/report`. Treat it as a secret: enter it only here (or at the blueprint prompt), never in the repo |
+
+   Render injects `PORT`; the container honours it. Under **Advanced** set **Health Check Path** to `/healthz`.
+6. **Create Web Service**. The build takes about 3-5 minutes the first time (watch the **Logs** tab). When it says
+   `Application startup complete`, open `https://pricewatch.onrender.com` (the exact URL is shown at the top of the service page;
+   if the name was taken Render adds a suffix, e.g. `pricewatch-ab12.onrender.com`). `/healthz` returns `{"ok": true}`.
+7. Put that URL in `README.md`, the Fiverr gig and your Upwork portfolio.
 
 Notes
-- Free Spaces sleep after ~48 h without visitors and wake on the next visit (about 30-60 s). The warm-up checks
-  repopulate the dashboard on wake-up.
-- The Space URL works embedded in an iframe and directly (`*.hf.space`).
-- To update: commit and `git push` again from `hf-space`; the Space rebuilds.
+- The first visit after an idle period waits about a minute for the cold start. Open the URL a few minutes before
+  recording the Loom or sending it to a buyer. The warm-up checks repopulate the dashboard on wake-up.
+- To update: `git push` to `main`; Render rebuilds and redeploys automatically.
 
 Optional: AI summary on the demo (Groq)
 - The demo works with no keys; the weekly report then shows the built-in template summary. To get an AI-written summary
-  in `/report`, open the Space -> **Settings -> Variables and secrets -> New secret**, name `GROQ_API_KEY`, value your key from
-  <https://console.groq.com>, then restart the Space. Add it as a **secret**, never as a plain variable and never in the repo.
+  in `/report`, open the service -> **Environment** -> **Add Environment Variable**, name `GROQ_API_KEY`, value your key from
+  <https://console.groq.com>; Render redeploys. Never put the key in the repo.
   Gemini works too: set `GEMINI_API_KEY` instead (or `LLM_PROVIDER=gemini` if both are present).
 - The dashboard footer then reads "AI summary on (groq)". `/report` is public on the demo, so the summary is cached for
   10 minutes and any Groq error or rate limit silently falls back to the template.
 - Default model is `openai/gpt-oss-120b`; override with a `GROQ_MODEL` variable (for example `openai/gpt-oss-20b`).
   Check which model ids your account can use with `GET https://api.groq.com/openai/v1/models`.
-- Do not enable `browser_agent` on the demo Space: the default image has no browser.
+- Do not enable `browser_agent` on the demo service: the default image has no browser.
 
-## Option B - Render (fallback)
+## Option B - Hugging Face Spaces (PRO only now)
 
-1. Push the project to a GitHub repo (keep `Dockerfile` in the repo root; `.env`, `.venv` and `*.db` are git-ignored).
-2. <https://dashboard.render.com> -> **New -> Web Service** -> connect the repo.
-3. **Runtime: Docker** (Render finds the `Dockerfile`), **Instance type: Free**.
-4. Environment variable `DEMO_MODE` = `1` (already the Dockerfile default, set it explicitly anyway).
-   Render injects `PORT`; the container honours it. Set **Health Check Path** to `/healthz`.
-5. Deploy. The URL is `https://<service-name>.onrender.com`.
-
-Notes: Render's free instances spin down after 15 minutes without traffic and cold-start in about a minute;
-the scheduler only runs while the instance is awake, which is fine for a demo.
+Hugging Face Spaces is no longer a free host for server apps (checked 2026-10-30): the Space SDK choices are only
+`gradio`, `docker` and `static`, and creating a Docker or Gradio Space returns HTTP 402 ("requires a PRO subscription").
+That is why the demo moved to Render. With a PRO account the old route still works: create a **Docker -> Blank** Space,
+copy the project into the Space repo (without `.venv`, `.git`, `docs`, `.env`, `*.db`, `README.md`), copy
+`deploy/HF_SPACE_README.md` over as the Space's `README.md` (it holds the required YAML header, `app_port: 7860`), and push.
+The Dockerfile already runs as uid 1000 and listens on 7860, which is what Spaces expects.
 
 ## Run the container locally (needs Docker)
 
