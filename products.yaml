@@ -1,0 +1,30 @@
+# PriceWatch configuration. Edit by hand or via the dashboard "Add product" form.
+# This starter file points at the built-in demo store (DEMO_MODE=1). Replace the URLs with real ones
+# for a client deployment, e.g.:
+#   - {store: ShopX, url: "https://www.shopx.com/p/123", css_selector: ".price", stock_selector: ".availability"}
+#   - {store: ShopY, url: "https://shopy.com/api/products/9", json_path: "product.price", stock_path: "product.available"}
+#   - {store: JsShop, url: "https://example.com/p", css_selector: ".price", backend: playwright}      # JS pages
+#   - {store: HardShop, url: "https://example.com/p2", backend: browser_agent}                         # AI browser (needs GROQ_API_KEY or GEMINI_API_KEY)
+settings:
+  undercut_pct: 5       # alert when a competitor is more than 5% below my price
+  drop_pct: 5           # alert when a competitor drops more than 5% since its last check
+  delay_seconds: 1.0    # polite pause between two requests to the same site
+  currency: "$"
+  respect_robots: true  # skip pages that robots.txt disallows
+  user_agent: "PriceWatch/1.0 (+https://github.com/shivam911898/pricewatch; contact: sak23571113@gmail.com)"
+products:
+  - name: Steel Water Bottle 1L
+    my_price: 24.0
+    competitors:
+      - {store: AlphaMart, url: /demo-store/alpha/1, css_selector: .price, stock_selector: .stock}
+      - {store: BetaShop, url: /demo-store/beta/api/1, json_path: product.price, stock_path: product.available}
+  - name: Wireless Mouse M200
+    my_price: 18.5
+    competitors:
+      - {store: AlphaMart, url: /demo-store/alpha/2, css_selector: .price, stock_selector: .stock}
+      - {store: BetaShop, url: /demo-store/beta/api/2, json_path: product.price, stock_path: product.available}
+  - name: Yoga Mat 6mm
+    my_price: 31.0
+    competitors:
+      - {store: AlphaMart, url: /demo-store/alpha/3, css_selector: .price, stock_selector: .stock}
+      - {store: BetaShop, url: /demo-store/beta/api/3, json_path: product.price, stock_path: product.available}

@@ -1,0 +1,111 @@
+{# Live sections. Each one is wrapped in data-slot="..." so the page can swap it after a refresh. #}
+
+{% macro slot_status() %}
+<div data-slot="status" class="status">
+  {% if scheduler.enabled %}
+    <span class="dot {{ 'busy' if scheduler.running else 'ok' }}"></span>
+    {% if scheduler.running %}Checking now...{% else %}
+      Checks every {{ scheduler.interval|duration }}
+      {% if scheduler.last_run %} &middot; last run {{ scheduler.last_run|ago }}{% endif %}
+      {% if scheduler.next_run %} &middot; next {{ scheduler.next_run|until }}{% endif %}
+    {% endif %}
+  {% else %}
+    <span class="dot"></span> Scheduler off (checks run via cron or the button)
+    {% if scheduler.last_run %} &middot; last run {{ scheduler.last_run|ago }}{% endif %}
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro slot_cards() %}
+<div data-slot="cards" class="cards">
+  <div class="card stat">
+    <div class="stat-label">Products tracked</div>
+    <div class="stat-value">{{ cards.products }}</div>
+    <div class="stat-sub">{{ cards.pages }} competitor page{{ '' if cards.pages == 1 else 's' }}</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Competitors</div>
+    <div class="stat-value">{{ cards.stores }}</div>
+    <div class="stat-sub">stores monitored</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Alerts, last 24 h</div>
+    <div class="stat-value">{{ cards.alerts_24h }}</div>
+    <div class="stat-sub">{% if cards.last_alert %}latest {{ cards.last_alert|ago }}{% else %}none yet{% endif %}</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Avg price gap vs me</div>
+    {% if cards.avg_gap is none %}
+      <div class="stat-value">&ndash;</div><div class="stat-sub">waiting for data</div>
+    {% else %}
+      <div class="stat-value {{ 'neg' if cards.avg_gap < -0.05 else ('pos' if cards.avg_gap > 0.05 else '') }}">
+        {{ '%+.1f'|format(cards.avg_gap) }}%</div>
+      <div class="stat-sub">{% if cards.avg_gap < -0.05 %}competitors are cheaper on average{% elif cards.avg_gap > 0.05 %}competitors are pricier on average{% else %}competitors match my prices{% endif %}</div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro slot_table() %}
+<div data-slot="table" data-products='{{ product_names|tojson }}' data-stores='{{ stores|tojson }}'>
+  <div class="table-wrap">
+    <table class="prices">
+      <thead><tr>
+        <th>Product</th><th class="num">My price</th><th>Competitor</th><th class="num">Their price</th>
+        <th class="num">vs me</th><th>Stock</th><th>Status</th><th>Last checked</th>
+      </tr></thead>
+      {% for g in groups %}
+      <tbody>
+        {% for r in g.rows %}
+        <tr class="st-{{ r.status }}" data-product="{{ r.product }}" title="Click to chart this product">
+          {% if loop.first %}
+          <td class="prod" rowspan="{{ g.rows|length }}">
+            <div class="prod-name">{{ g.product }}</div>
+            <button class="icon-btn" data-del="{{ g.product }}" aria-label="Remove {{ g.product }}" title="Remove product">&times;</button>
+          </td>
+          <td class="num mine" rowspan="{{ g.rows|length }}">{{ g.my_price|money(currency) }}</td>
+          {% endif %}
+          <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="store">{{ r.store }}</a>
+              {% if r.backend != 'http' %}<span class="tag">{{ r.backend|replace('_', ' ') }}</span>{% endif %}</td>
+          <td class="num">{% if r.price is not none %}{{ r.price|money(currency) }}
+              {% if r.delta %}<span class="delta {{ 'down' if r.delta < 0 else 'up' }}" title="change since previous check">{{ '&#9660;'|safe if r.delta < 0 else '&#9650;'|safe }} {{ r.delta|abs|money(currency) }}</span>{% endif %}
+              {% else %}&ndash;{% endif %}</td>
+          <td class="num">{% if r.diff is not none %}{{ '%+.1f'|format(r.diff) }}%{% else %}&ndash;{% endif %}</td>
+          <td>{% if r.price is none %}&ndash;{% elif r.in_stock %}In stock{% else %}<strong>Out of stock</strong>{% endif %}</td>
+          <td><span class="pill {{ r.status }}" {% if r.error %}title="{{ r.error }}"{% endif %}>{{ r.label }}</span>
+              {% if r.error %}<div class="err">{{ r.error }}</div>{% endif %}</td>
+          <td class="muted">{{ r.ts|ago }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% else %}
+      <tbody><tr><td colspan="8" class="empty">No products yet. Add one with the form below.</td></tr></tbody>
+      {% endfor %}
+    </table>
+  </div>
+  <p class="legend">
+    <span class="pill undercut">Undercuts you</span> cheaper than your alert threshold &nbsp;
+    <span class="pill oos">Out of stock</span> competitor can't ship &nbsp;
+    <span class="pill above">Priced above you</span> room to raise or hold &nbsp;
+    <span class="pill inline">In line</span> within the threshold
+  </p>
+</div>
+{% endmacro %}
+
+{% macro slot_alerts() %}
+<div data-slot="alerts">
+  {% if alerts %}
+  <ul class="alerts">
+    {% for a in alerts %}
+    <li class="alert-{{ a.kind }}">
+      <span class="pill k-{{ a.kind }}">{{ a.label }}</span>
+      <span class="alert-msg">{{ a.message }}</span>
+      <span class="muted alert-time" title="{{ a.ts }}">{{ a.ts|ago }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No alerts yet. They appear here (and in Telegram / Google Sheets, if enabled) as soon as a competitor undercuts you, drops its price or runs out of stock.</p>
+  {% endif %}
+</div>
+{% endmacro %}

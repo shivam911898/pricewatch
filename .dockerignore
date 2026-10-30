@@ -1,0 +1,11 @@
+.venv
+.git
+__pycache__
+*.pyc
+*.db
+*.tmp
+.env
+report.html
+docs
+deploy
+verify.py

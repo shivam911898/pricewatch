@@ -1,0 +1,5 @@
+# Optional extras for the JavaScript-heavy-site backends. Not needed for the default HTTP backend or the demo.
+# Install AFTER requirements.txt:   pip install -r requirements.txt ; pip install -r requirements-browser.txt
+# (browser-use pins several shared libraries itself, so pip adjusts a few versions from requirements.txt; that is expected.)
+browser-use==0.13.14      # backend: browser_agent (AI agent + Groq or Gemini), needs Python >= 3.11 and Chrome/Edge/Chromium
+playwright>=1.49          # backend: playwright (then run: playwright install chromium)
