@@ -1,6 +1,6 @@
 # PriceWatch - competitor price & stock monitor with alerts
 
-**Live demo:** `https://<your-service>.onrender.com` *(add after deploying, see [DEPLOY.md](DEPLOY.md); the free Render instance sleeps after about 15 minutes idle, so the first load can take about a minute)*
+**Live demo:** <https://pricewatch-x0x8.onrender.com> *(free Render instance: it sleeps after about 15 minutes idle, so the first load can take about a minute)*
 
 Small online sellers lose sales when a rival quietly undercuts them or runs out of stock, and checking
 competitor pages by hand is slow and easy to forget. **PriceWatch** checks those pages on a schedule, keeps the

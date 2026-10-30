@@ -41,7 +41,7 @@ You get:
 - Polite scraping: robots.txt respected, sensible delays, hourly checks
 - Full source code, a setup guide and a short video walkthrough
 
-Not sure your competitors' sites can be monitored? Send me 2-3 product links and I will tell you before you order. Live demo: see the link in my portfolio.
+Not sure your competitors' sites can be monitored? Send me 2-3 product links and I will tell you before you order. Live demo: https://pricewatch-x0x8.onrender.com
 ```
 
 ## FAQ
